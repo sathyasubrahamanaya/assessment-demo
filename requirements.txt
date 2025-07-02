@@ -5,4 +5,6 @@ google-genai
 pydantic-settings
 sqlalchemy
 duckduckgo-search
-lancedb 
+lancedb
+requests
+pandas

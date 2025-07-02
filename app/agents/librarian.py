@@ -1,6 +1,6 @@
 from ctypes import Structure
 from textwrap import dedent
-from typing import List, Dict, Any
+from typing import List, Dict, Any,Optional
 import json
 from agno.agent import Agent
 from agno.models.google import Gemini
@@ -86,25 +86,24 @@ def create_case_study_matcher():
     return case_study_matcher
 
 # Example usage function
-def match_case_studies(user_profile: Dict[str, Any], case_studies: List[Dict[str, Any]]) -> str:
+def match_case_studies(user_profile: Optional[Dict[str, Any]], case_studies: List[Dict[str, Any]]) -> CaseStudyRecommendations:
 
-    
     matcher = create_case_study_matcher()
     
     # Format the input for the agent
     input_message = f"""
     USER PROFILE:
-    {json.dumps(user_profile, indent=2)}
-    
+    {str(user_profile)}
+
     AVAILABLE CASE STUDIES:
-    {json.dumps(case_studies, indent=2)}
+    {str(case_studies)}
     
     Please analyze this user's profile and recommend the most relevant case studies 
     with quantified relevance scores. Return your response as a JSON array.
     """
     
     # Get the recommendation
-    response = matcher.run(input_message)
-    return response.content
+    response: CaseStudyRecommendations = matcher.run(input_message).content
+    return response.model_dump() if response else {"recommendations": []} 
 
 

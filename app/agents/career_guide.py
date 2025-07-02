@@ -33,7 +33,6 @@ def get_complete_profile():
     print("fetching collected profile")
     return profile_summary
 
-# Instructions to guide the agent
 instructions = """
 **Persona:** You are 'PathFinder', an expert and friendly AI career counsellor. Your goal is to collect user details needed to build the following JSON profile. Use friendly and professional tone, always ask questions based on fields below.
 
@@ -154,7 +153,7 @@ User profile:
 agent_instructions = """
 You are **Pathfinder**, an expert AI career guide. Your mission is to help users discover ideal career paths by engaging them in an intelligent, structured interview.
 
-You will conduct a conversation with a maximum of 15 questions, dynamically generated based on user responses. Each question must be either:
+You will conduct a conversation with a maximum of **5** questions, dynamically generated based on user responses. Each question must be either:
 
 1. **Scale-Based (1–5)**
 2. **Multiple Choice (A–D)** — You may include options like "None" or "N/A" when appropriate, especially for simpler questions with only A or B options.
@@ -165,6 +164,8 @@ Your questioning logic should:
 - Reference both the **user's profile** (`get_profile_summary`) and **previous questions** (`get_question_history`) before generating new ones.
 - Adjust questions based on STEM or Non-STEM background.
 - Assess soft skills (e.g., communication, creativity, resilience) **implicitly**, without directly stating them.
+-when generating questions, always use `get_profile_summary()` to get the latest profile and `get_question_history()` to avoid repeating past questions.
+- when generating questions ask in confusion free rich options should be provided,
 
 ---
 
@@ -172,7 +173,8 @@ Your questioning logic should:
 
 - Always call `get_question_history()` to avoid repeating past questions.
 - Always use `get_profile_summary()` before generating each question.
-- Track progress with `get_question_count()` and increment via `update_question_count()`.
+- Always track progress with `get_question_count()` and increment via `update_question_count()`.
+- when Maximum questions are reached, update process_completed to true  for last question. for this always use `update_question_count()`  and `get_question_count()` to increment the count.
 
 After each user response:
 - Use `map_and_add_tool()` to record the answer and mapped traits.
@@ -212,6 +214,8 @@ Respond only in this format:
 
 {
   "question": "Question to ask",
+  "question_number": 1,  # Incremented by `update_question_count()` tool
+  "options": ["Option A", "Option B", "Option C", "Option D"], or ["Option A" ,"option-B"]  # Only for MCQ questions
   "question_type": "Type: scale or mcq",
   "process_completed": true or false
 }
@@ -224,7 +228,9 @@ Respond only in this format:
 # Output structure
 class CareerOutputModel(BaseModel):
     question: str = Field(description="Question to ask")
+    question_number: int = Field(description="Current question number, incremented by update_question_count tool")
     question_type: str = Field(description="Type: scale or mcq")
+    options: Optional[List[str]] = Field(default=None, description="List of options for MCQ questions")
     process_completed: bool = Field(description="Whether the interview is completed")
 
 # Agent creation
@@ -254,11 +260,16 @@ This format is used to represent the current state of a question and whether the
 
 parser_instructions = """
 Read the input carefully and convert it into the exact fields of CareerOutputModel:
-- question: the full question text
+- question: the full question text to be asked
+- options: a list of options if the question is MCQ, or None if it's a scale question
 - question_type: either 'scale' or 'mcq'
 - process_completed: true if the interview process is complete, false otherwise
 
 You must output only a valid CareerOutputModel-compatible dictionary. Do not include any explanations or extra text.
+Guidelines:
+- If the input is a scale question, set options to None.
+-when formuating the output, ensure that the question is clear and concise. do not include options.
+- If the input is an MCQ question, extract the options and set them in the options field.
 """
 
 # Create the parser agent
@@ -272,18 +283,20 @@ career_output_parser_agent = Agent(
 
 profile_completed = False
 def interview_workflow(input_text:str):
+   
     global profile_completed
+    print("profile_completed status:", profile_completed)
     if not profile_completed:
         response = profile_collector.run(input_text)
         if "PROFILE_COLLECTED" in response.content:
             profile_completed = True
-            return {"status": "success", "message": "Profile collection completed."}
+            return {"status": "profile_completed", "message": "Profile collection completed."}
         else:
-            return {"status": "in_progress", "response": response.content, "input_type": "user_input"}
+            return {"status": "profile_in_progress", "response": response.content, "input_type": "user_input"}
     else:
         response = interview_agent.run(input_text)
-        response_json:CareerOutputModel = career_output_parser_agent.run(response.content)
-        return {"status": "interview_completed", "response": response_json.model_dump(), "input_type": "scale/mcq"}
+        response_json:CareerOutputModel = career_output_parser_agent.run(response.content).content
+        return {"status": response_json.process_completed, "response": response_json.model_dump(), "input_type": "scale/mcq"}
 
 
   

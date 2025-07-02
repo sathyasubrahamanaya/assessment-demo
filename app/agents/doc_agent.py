@@ -3,11 +3,18 @@ from typing import List, Dict, Any
 from textwrap import dedent
 from app.agents.llm import chat_model
 from app.agents.models.datamodels import CareerAnalysisReport
+import logging
 
-deepdive_career_analyst = Agent(
-    name="DeepDive Career Analyst",
-   
-    model= chat_model,
+logger = logging.getLogger(__name__)
+
+# Check if model is available
+if chat_model is None:
+    logger.error("Cannot create DeepDive Career Analyst agent: chat_model is not available")
+    deepdive_career_analyst = None
+else:
+    deepdive_career_analyst = Agent(
+        name="DeepDive Career Analyst",
+        model=chat_model,
     description=dedent("""
         You are an expert AI agent named "DeepDive Career Analyst." You are a specialist in 
         translating complex information into actionable career intelligence. You don't just 
